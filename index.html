@@ -460,6 +460,35 @@ html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1
 }
 @keyframes recBlink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
 @media (prefers-reduced-motion: reduce){ .thermal-hud .rec-dot{animation:none;} }
+
+/* ---------- flight telemetry HUD ---------- */
+.flight-hud{
+  position:fixed; top:14px; right:20px; z-index:40;
+  width:150px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-left:2px solid var(--teal);
+  border-radius:4px;
+  padding:10px 13px 11px;
+  font-family:'IBM Plex Mono',monospace;
+  backdrop-filter:blur(6px);
+  box-shadow:0 14px 30px -18px var(--shadow);
+}
+.fh-head{
+  display:flex; align-items:center; gap:6px;
+  font-size:0.62rem; letter-spacing:0.09em; text-transform:uppercase;
+  color:var(--ink-soft); margin-bottom:7px; padding-bottom:6px;
+  border-bottom:1px dashed var(--line);
+}
+.fh-dot{ width:6px; height:6px; border-radius:50%; background:var(--teal); flex-shrink:0; }
+.fh-row{
+  display:flex; justify-content:space-between; gap:8px;
+  font-size:0.72rem; line-height:1.7;
+  font-variant-numeric:tabular-nums;
+}
+.fh-row span:first-child{ color:var(--ink-soft); letter-spacing:0.05em; }
+.fh-row span:last-child{ color:var(--ink); }
+@media (max-width:480px){ .flight-hud{display:none;} }
 </style>
 </head>
 <body>
@@ -493,6 +522,14 @@ html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1
 
 <div class="thermal-hud" id="thermalHud">
   <span class="rec-dot"></span> FLIR MODE · AETHRONE-CAM01 · 36.6°C
+</div>
+
+<div class="flight-hud" id="flightHud" aria-hidden="true">
+  <div class="fh-head"><span class="fh-dot"></span> Flight Computer</div>
+  <div class="fh-row"><span>ALT</span><span id="hudAlt">000m</span></div>
+  <div class="fh-row"><span>SPD</span><span id="hudSpeed">0 km/h</span></div>
+  <div class="fh-row"><span>SECTOR</span><span id="hudSector">TOP</span></div>
+  <div class="fh-row"><span>BATT</span><span id="hudBattery">100%</span></div>
 </div>
 
 <nav class="dotnav" id="dotnav">
@@ -763,6 +800,7 @@ html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1
   }, {threshold:0.12});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
 
+  var hudSector = document.getElementById('hudSector');
   var navIo = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       var idx = sections.indexOf(e.target);
@@ -770,6 +808,7 @@ html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1
       if(e.isIntersecting){
         dots.forEach(function(d){ d.classList.remove('active'); });
         dots[idx].classList.add('active');
+        if(hudSector) hudSector.textContent = (dots[idx].dataset.label || '').toUpperCase();
       }
     });
   }, {threshold:0.5});
@@ -777,12 +816,36 @@ html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1
 
   var progress = document.getElementById('progress');
   var progressDrone = document.getElementById('progressDrone');
+  var hudAlt = document.getElementById('hudAlt');
+  var hudSpeed = document.getElementById('hudSpeed');
+  var hudBattery = document.getElementById('hudBattery');
+  var lastScrollTop = window.scrollY;
+  var lastScrollAt = performance.now();
+
   window.addEventListener('scroll', function(){
     var h = document.documentElement;
-    var pct = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    var scrollable = h.scrollHeight - h.clientHeight;
+    var pct = scrollable > 0 ? (h.scrollTop / scrollable) * 100 : 0;
     progress.style.width = pct + '%';
     if(progressDrone) progressDrone.style.left = pct + '%';
+
+    var now = performance.now();
+    var dt = Math.max(now - lastScrollAt, 1);
+    var dy = Math.abs(h.scrollTop - lastScrollTop);
+    var kmh = Math.round((dy / dt) * 36);
+    lastScrollTop = h.scrollTop; lastScrollAt = now;
+
+    var altFrac = pct / 100;
+    var alt = Math.round(altFrac * 120);
+    var battery = Math.max(78, 100 - Math.round(altFrac * 22));
+    if(hudAlt) hudAlt.textContent = pct >= 99.3 ? 'LANDED' : (alt + 'm');
+    if(hudSpeed) hudSpeed.textContent = kmh + ' km/h';
+    if(hudBattery) hudBattery.textContent = battery + '%';
   }, {passive:true});
+
+  setInterval(function(){
+    if(hudSpeed && performance.now() - lastScrollAt > 400){ hudSpeed.textContent = '0 km/h'; }
+  }, 400);
 
   // ---- Drone-as-cursor: activates on the first real mouse movement ----
   // (matchMedia's 'hover'/'pointer' reflect only the *primary* input and are
