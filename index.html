@@ -383,6 +383,51 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 
 .section-head{display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;}
 .section-head h2{font-size:clamp(1.7rem,3.6vw,2.3rem);}
+
+/* ---------- anomaly toast (self-referential easter egg) ---------- */
+.anomaly-toast{
+  position:fixed; left:20px; bottom:20px; z-index:9998;
+  display:flex; flex-direction:column; gap:10px;
+  pointer-events:none;
+}
+.atoast{
+  pointer-events:auto;
+  width:min(320px, calc(100vw - 40px));
+  background:var(--card);
+  border:1px solid var(--line);
+  border-left:3px solid var(--ember);
+  border-radius:4px;
+  padding:13px 14px 11px;
+  box-shadow:0 18px 40px -18px var(--shadow);
+  backdrop-filter:blur(6px);
+  font-family:'IBM Plex Mono',monospace;
+  animation:atoastIn .35s cubic-bezier(.2,.9,.3,1.2);
+}
+@media (prefers-reduced-motion: reduce){ .atoast{animation:none;} }
+@keyframes atoastIn{
+  from{ opacity:0; transform:translateY(10px) scale(.97); }
+  to{ opacity:1; transform:none; }
+}
+.atoast-head{
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:0.66rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-soft);
+  margin-bottom:8px;
+}
+.atoast-head b{color:var(--ember); font-weight:600;}
+.atoast-close{
+  background:none; border:none; color:var(--ink-soft); cursor:pointer;
+  font-family:inherit; font-size:0.9rem; line-height:1; padding:0 0 0 8px;
+}
+.atoast-close:hover{color:var(--ember);}
+.atoast-row{ font-size:0.78rem; color:var(--ink); display:flex; gap:6px; margin-bottom:3px; }
+.atoast-row span:first-child{color:var(--ink-soft); min-width:78px;}
+.atoast-note{ font-size:0.72rem; color:var(--ink-soft); margin-top:8px; font-style:italic; }
+.atoast-link{ display:inline-block; margin-top:9px; font-size:0.74rem; color:var(--teal); text-decoration:none; border-bottom:1px solid transparent; }
+.atoast-link:hover{ border-color:var(--teal); }
+.atoast-bar{ height:2px; background:var(--line); margin-top:10px; border-radius:2px; overflow:hidden; }
+.atoast-bar i{ display:block; height:100%; background:var(--ember); width:100%; transform-origin:left; animation:atoastShrink 6s linear forwards; }
+@keyframes atoastShrink{ to{ transform:scaleX(0); } }
+@media (max-width:640px){ .anomaly-toast{left:14px; right:14px; bottom:14px;} .atoast{width:100%;} }
 </style>
 </head>
 <body>
@@ -630,6 +675,8 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 
 <footer>Designed &amp; built by Akhilesh Shinde</footer>
 
+<div class="anomaly-toast" id="anomalyToast" aria-live="polite"></div>
+
 <div class="cursor-drone" id="cursorDrone" aria-hidden="true">
   <svg viewBox="0 0 120 90" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
     <line x1="30" y1="30" x2="55" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
@@ -684,13 +731,74 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var cd = document.getElementById('cursorDrone');
 
+  // ---- Self-referential "anomaly detector" easter egg ----
+  // Reuses the classes and confusion pair documented in the ahc-vad README:
+  // the model confuses fighting_or_violence <-> loitering_or_suspicious_presence.
+  var toastHost = document.getElementById('anomalyToast');
+  var toastCount = 0;
+  var lastToastAt = 0;
+  var TOAST_MAX = 3;
+  var TOAST_COOLDOWN = 30000;
+
+  var VARIANTS = {
+    idle: {
+      cls: 'loitering_or_suspicious_presence',
+      conf: '0.62',
+      trigger: 'no motion for 14s',
+      note: 'known confusion class: fighting_or_violence — see repo notes'
+    },
+    erratic: {
+      cls: 'fighting_or_violence',
+      conf: '0.58',
+      trigger: 'high-frequency direction reversal',
+      note: 'known confusion class: loitering_or_suspicious_presence — see repo notes'
+    }
+  };
+
+  function showAnomalyToast(kind){
+    if(!toastHost) return;
+    var now = performance.now();
+    if(toastCount >= TOAST_MAX || (now - lastToastAt) < TOAST_COOLDOWN) return;
+    toastCount++; lastToastAt = now;
+
+    var v = VARIANTS[kind];
+    var el = document.createElement('div');
+    el.className = 'atoast';
+    el.innerHTML =
+      '<div class="atoast-head"><b>AHC-VAD</b> · live inference<button class="atoast-close" aria-label="Dismiss">×</button></div>' +
+      '<div class="atoast-row"><span>class</span><span>' + v.cls + '</span></div>' +
+      '<div class="atoast-row"><span>confidence</span><span>' + v.conf + '</span></div>' +
+      '<div class="atoast-row"><span>trigger</span><span>' + v.trigger + '</span></div>' +
+      '<div class="atoast-note">' + v.note + '</div>' +
+      '<a class="atoast-link" href="https://github.com/akhileshshinde/ahc-vad" target="_blank" rel="noopener">View the model →</a>' +
+      '<div class="atoast-bar"><i></i></div>';
+
+    toastHost.appendChild(el);
+    var remove = function(){ if(el.parentNode) el.parentNode.removeChild(el); };
+    el.querySelector('.atoast-close').addEventListener('click', remove);
+    setTimeout(remove, 6400);
+  }
+
+  var lastActivityAt = Date.now();
+  ['mousemove','keydown','scroll','touchstart','wheel'].forEach(function(evt){
+    window.addEventListener(evt, function(){ lastActivityAt = Date.now(); }, {passive:true});
+  });
+  setInterval(function(){
+    if(Date.now() - lastActivityAt > 14000){
+      showAnomalyToast('idle');
+      lastActivityAt = Date.now();
+    }
+  }, 2000);
+
   if(!reducedMotion && cd){
     var pos = {x: window.innerWidth/2, y: 120};
-    var prevX = pos.x;
+    var prevX = pos.x, prevY = pos.y;
     var tilt = 0;
     var lastMoveAt = 0;
     var active = false;
     var loopStarted = false;
+    var reversalTimes = [];
+    var lastDxSign = 0;
 
     function activate(){
       if(active) return;
@@ -712,13 +820,30 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 
     function loop(){
       var dx = pos.x - prevX;
+      var dy = pos.y - prevY;
+      var speed = Math.sqrt(dx*dx + dy*dy);
       var idleFor = performance.now() - lastMoveAt;
       var idle = idleFor > 220;
       var targetTilt = idle ? 0 : Math.max(-26, Math.min(26, dx * 1.1));
       tilt += (targetTilt - tilt) * 0.22;
       var bob = idle ? Math.sin(performance.now() / 450) * 4 : 0;
       cd.style.transform = 'translate3d(' + (pos.x - 25) + 'px,' + (pos.y - 19 + bob) + 'px,0) rotate(' + tilt.toFixed(2) + 'deg)';
-      prevX = pos.x;
+
+      if(!idle && speed > 42){
+        var sign = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
+        if(sign !== 0 && lastDxSign !== 0 && sign !== lastDxSign){
+          var t = performance.now();
+          reversalTimes.push(t);
+          reversalTimes = reversalTimes.filter(function(rt){ return t - rt < 900; });
+          if(reversalTimes.length >= 4){
+            showAnomalyToast('erratic');
+            reversalTimes = [];
+          }
+        }
+        if(sign !== 0) lastDxSign = sign;
+      }
+
+      prevX = pos.x; prevY = pos.y;
       requestAnimationFrame(loop);
     }
   }
