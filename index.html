@@ -677,27 +677,38 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
     if(progressDrone) progressDrone.style.left = pct + '%';
   }, {passive:true});
 
-  // ---- Drone-as-cursor: only on fine-pointer (mouse) devices ----
-  var isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  // ---- Drone-as-cursor: activates on the first real mouse movement ----
+  // (matchMedia's 'hover'/'pointer' reflect only the *primary* input and are
+  // unreliable on hybrid touch+mouse laptops, so we gate on an actual
+  // mousemove event instead, which only a real mouse/trackpad fires.)
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var cd = document.getElementById('cursorDrone');
 
-  if(isFinePointer && !reducedMotion && cd){
-    document.documentElement.classList.add('drone-cursor-active');
+  if(!reducedMotion && cd){
     var pos = {x: window.innerWidth/2, y: 120};
     var prevX = pos.x;
     var tilt = 0;
     var lastMoveAt = 0;
-    var visible = false;
+    var active = false;
+    var loopStarted = false;
+
+    function activate(){
+      if(active) return;
+      active = true;
+      document.documentElement.classList.add('drone-cursor-active');
+      cd.style.opacity = '1';
+      if(!loopStarted){ loopStarted = true; requestAnimationFrame(loop); }
+    }
 
     window.addEventListener('mousemove', function(e){
       pos.x = e.clientX;
       pos.y = e.clientY;
       lastMoveAt = performance.now();
-      if(!visible){ cd.style.opacity = '1'; visible = true; }
+      activate();
     }, {passive:true});
 
-    document.addEventListener('mouseleave', function(){ cd.style.opacity = '0'; visible = false; });
+    document.addEventListener('mouseleave', function(){ cd.style.opacity = '0'; });
+    document.addEventListener('mouseenter', function(){ if(active) cd.style.opacity = '1'; });
 
     function loop(){
       var dx = pos.x - prevX;
@@ -710,7 +721,6 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
       prevX = pos.x;
       requestAnimationFrame(loop);
     }
-    requestAnimationFrame(loop);
   }
 })();
 </script>
