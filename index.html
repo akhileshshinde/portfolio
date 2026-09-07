@@ -428,6 +428,38 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 .atoast-bar i{ display:block; height:100%; background:var(--ember); width:100%; transform-origin:left; animation:atoastShrink 6s linear forwards; }
 @keyframes atoastShrink{ to{ transform:scaleX(0); } }
 @media (max-width:640px){ .anomaly-toast{left:14px; right:14px; bottom:14px;} .atoast{width:100%;} }
+
+/* ---------- thermal-cam toggle ---------- */
+html.thermal-mode #page{ filter:url(#thermal-filter) contrast(1.08) brightness(1.03); }
+
+.thermal-toggle{
+  position:fixed; right:20px; bottom:20px; z-index:9997;
+  width:42px; height:42px; border-radius:50%;
+  border:1px solid var(--line); background:var(--card);
+  color:var(--ink-soft);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  box-shadow:0 14px 30px -16px var(--shadow);
+  transition:color .2s, border-color .2s, transform .2s;
+}
+.thermal-toggle:hover{ color:var(--ember); border-color:var(--ember); transform:translateY(-2px); }
+.thermal-toggle[aria-pressed="true"]{ color:var(--ember); border-color:var(--ember); }
+.thermal-toggle:focus-visible{ outline:2px solid var(--focus); outline-offset:3px; }
+
+.thermal-hud{
+  display:none;
+  position:fixed; top:16px; left:16px; z-index:9996;
+  align-items:center; gap:8px;
+  font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.05em;
+  color:#e8f2ef; background:rgba(10,14,12,0.55); backdrop-filter:blur(3px);
+  padding:7px 12px; border-radius:3px; border:1px solid rgba(255,255,255,0.15);
+}
+.thermal-hud .rec-dot{
+  width:7px; height:7px; border-radius:50%; background:#ff4d4d;
+  animation:recBlink 1.1s ease-in-out infinite;
+}
+@keyframes recBlink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+@media (prefers-reduced-motion: reduce){ .thermal-hud .rec-dot{animation:none;} }
 </style>
 </head>
 <body>
@@ -436,6 +468,32 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 
 <div class="progress" id="progress"></div>
 <div class="progress-drone" id="progressDrone">🛸</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="thermal-filter" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="
+      0.33 0.33 0.33 0 0
+      0.33 0.33 0.33 0 0
+      0.33 0.33 0.33 0 0
+      0    0    0    1 0"/>
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="0.02 0.24 0.78 0.98 1"/>
+      <feFuncG type="table" tableValues="0.0  0.0  0.08 0.71 1"/>
+      <feFuncB type="table" tableValues="0.08 0.43 0.08 0.08 1"/>
+    </feComponentTransfer>
+  </filter>
+</svg>
+
+<button class="thermal-toggle" id="thermalToggle" type="button" aria-pressed="false" aria-label="Toggle thermal camera view" title="Thermal cam">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path d="M10 14.76V4.5a2 2 0 1 1 4 0v10.26a4 4 0 1 1-4 0Z"/>
+    <line x1="12" y1="7" x2="12" y2="13"/>
+  </svg>
+</button>
+
+<div class="thermal-hud" id="thermalHud">
+  <span class="rec-dot"></span> FLIR MODE · AETHRONE-CAM01 · 36.6°C
+</div>
 
 <nav class="dotnav" id="dotnav">
   <a href="#hero" data-label="Top"><span class="tip">Top</span></a>
@@ -448,6 +506,7 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 </nav>
 
 <!-- ================= HERO ================= -->
+<div id="page">
 <section class="hero" id="hero">
   <div class="topo" aria-hidden="true">
     <svg viewBox="0 0 1200 700" preserveAspectRatio="none">
@@ -674,6 +733,7 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 </section>
 
 <footer>Designed &amp; built by Akhilesh Shinde</footer>
+</div><!-- #page -->
 
 <div class="anomaly-toast" id="anomalyToast" aria-live="polite"></div>
 
@@ -847,6 +907,31 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
       requestAnimationFrame(loop);
     }
   }
+})();
+
+(function(){
+  var btn = document.getElementById('thermalToggle');
+  var hud = document.getElementById('thermalHud');
+  if(!btn) return;
+  var timer = null;
+  var DURATION = 8000;
+
+  function setActive(on){
+    document.documentElement.classList.toggle('thermal-mode', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if(hud) hud.style.display = on ? 'flex' : 'none';
+  }
+
+  btn.addEventListener('click', function(){
+    var isOn = document.documentElement.classList.contains('thermal-mode');
+    clearTimeout(timer);
+    if(isOn){
+      setActive(false);
+    } else {
+      setActive(true);
+      timer = setTimeout(function(){ setActive(false); }, DURATION);
+    }
+  });
 })();
 </script>
 
