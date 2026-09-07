@@ -157,40 +157,26 @@ section:last-of-type{border-bottom:none;}
 }
 .dotnav a:hover .tip{opacity:1;}
 
-.flightpath{
-  position:absolute; left:50%; top:4px; bottom:4px; width:0;
-  border-left:1.5px dashed var(--line);
-  transform:translateX(-50%);
-  z-index:1;
-}
-
-.drone{
-  position:absolute; left:50%; top:0;
-  width:44px; height:34px;
-  margin-left:-22px;
-  transform:translateY(var(--fly-y,0px));
-  transition:transform .8s cubic-bezier(.34,1.15,.64,1), opacity .5s ease;
-  z-index:3;
-  opacity:1;
-  pointer-events:none;
-}
-.drone.pretakeoff{
-  opacity:0;
-  transform:translateY(calc(var(--fly-y,0px) + 60px));
-}
-.drone-inner{
-  width:100%; height:100%;
-  animation:hoverbob 2.2s ease-in-out infinite;
-  transition:transform .7s ease;
-}
-.drone.banking .drone-inner{ transform:rotate(var(--bank,0deg)); }
-@keyframes hoverbob{
-  0%,100%{transform:translateY(0);}
-  50%{transform:translateY(-3px);}
-}
-.drone.banking .drone-inner{animation:none;}
 .rotor{ animation:rotorspin .12s linear infinite; transform-origin:center; }
 @keyframes rotorspin{ to{ transform:rotate(360deg);} }
+
+.cursor-drone{
+  position:fixed; top:0; left:0;
+  width:50px; height:38px;
+  pointer-events:none;
+  z-index:9999;
+  opacity:0;
+  transition:opacity .2s ease;
+  will-change:transform;
+  filter:drop-shadow(0 8px 14px var(--shadow));
+}
+@media (prefers-reduced-motion: reduce){ .cursor-drone{display:none;} }
+@media (max-width:640px){ .cursor-drone{display:none;} }
+
+html.drone-cursor-active,
+html.drone-cursor-active body,
+html.drone-cursor-active a,
+html.drone-cursor-active button{ cursor:none; }
 
 .progress-drone{
   display:none;
@@ -407,22 +393,6 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 <div class="progress-drone" id="progressDrone">🛸</div>
 
 <nav class="dotnav" id="dotnav">
-  <div class="flightpath"></div>
-  <div class="drone pretakeoff" id="drone">
-    <div class="drone-inner">
-      <svg viewBox="0 0 120 90" width="44" height="34" xmlns="http://www.w3.org/2000/svg">
-        <line x1="30" y1="30" x2="55" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
-        <line x1="90" y1="30" x2="65" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
-        <line x1="30" y1="60" x2="55" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
-        <line x1="90" y1="60" x2="65" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
-        <rect x="48" y="37" width="24" height="16" rx="4" fill="var(--ember)"/>
-        <g class="rotor" style="transform-origin:30px 30px"><ellipse cx="30" cy="30" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
-        <g class="rotor" style="transform-origin:90px 30px"><ellipse cx="90" cy="30" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
-        <g class="rotor" style="transform-origin:30px 60px"><ellipse cx="30" cy="60" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
-        <g class="rotor" style="transform-origin:90px 60px"><ellipse cx="90" cy="60" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
-      </svg>
-    </div>
-  </div>
   <a href="#hero" data-label="Top"><span class="tip">Top</span></a>
   <a href="#about" data-label="About"><span class="tip">About</span></a>
   <a href="#experience" data-label="Experience"><span class="tip">Experience</span></a>
@@ -660,32 +630,24 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
 
 <footer>Designed &amp; built by Akhilesh Shinde</footer>
 
+<div class="cursor-drone" id="cursorDrone" aria-hidden="true">
+  <svg viewBox="0 0 120 90" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <line x1="30" y1="30" x2="55" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
+    <line x1="90" y1="30" x2="65" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
+    <line x1="30" y1="60" x2="55" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
+    <line x1="90" y1="60" x2="65" y2="45" stroke="var(--ink-soft)" stroke-width="4"/>
+    <rect x="48" y="37" width="24" height="16" rx="4" fill="var(--ember)"/>
+    <g class="rotor" style="transform-origin:30px 30px"><ellipse cx="30" cy="30" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
+    <g class="rotor" style="transform-origin:90px 30px"><ellipse cx="90" cy="30" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
+    <g class="rotor" style="transform-origin:30px 60px"><ellipse cx="30" cy="60" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
+    <g class="rotor" style="transform-origin:90px 60px"><ellipse cx="90" cy="60" rx="15" ry="3.4" fill="var(--ink-soft)"/></g>
+  </svg>
+</div>
+
 <script>
 (function(){
   var dots = document.querySelectorAll('#dotnav a');
   var sections = Array.from(dots).map(function(d){ return document.querySelector(d.getAttribute('href')); });
-  var dotnav = document.getElementById('dotnav');
-  var drone = document.getElementById('drone');
-  var lastIdx = 0;
-
-  function positionDrone(){
-    var idx = Array.from(dots).findIndex(function(d){ return d.classList.contains('active'); });
-    if(idx === -1) idx = 0;
-    var dotRect = dots[idx].getBoundingClientRect();
-    var navRect = dotnav.getBoundingClientRect();
-    var offsetY = dotRect.top - navRect.top + dotRect.height/2 - 17;
-    drone.style.setProperty('--fly-y', offsetY + 'px');
-    if(idx !== lastIdx){
-      drone.style.setProperty('--bank', (idx > lastIdx ? '14deg' : '-14deg'));
-      drone.classList.add('banking');
-      window.clearTimeout(drone._bankTimer);
-      drone._bankTimer = window.setTimeout(function(){
-        drone.classList.remove('banking');
-        drone.style.setProperty('--bank','0deg');
-      }, 750);
-      lastIdx = idx;
-    }
-  }
 
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
@@ -701,7 +663,6 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
       if(e.isIntersecting){
         dots.forEach(function(d){ d.classList.remove('active'); });
         dots[idx].classList.add('active');
-        positionDrone();
       }
     });
   }, {threshold:0.5});
@@ -716,11 +677,41 @@ footer{ padding:24px 0 36px; text-align:center; font-family:'IBM Plex Mono',mono
     if(progressDrone) progressDrone.style.left = pct + '%';
   }, {passive:true});
 
-  window.addEventListener('load', function(){
-    positionDrone();
-    setTimeout(function(){ drone.classList.remove('pretakeoff'); }, 350);
-  });
-  window.addEventListener('resize', positionDrone);
+  // ---- Drone-as-cursor: only on fine-pointer (mouse) devices ----
+  var isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cd = document.getElementById('cursorDrone');
+
+  if(isFinePointer && !reducedMotion && cd){
+    document.documentElement.classList.add('drone-cursor-active');
+    var pos = {x: window.innerWidth/2, y: 120};
+    var prevX = pos.x;
+    var tilt = 0;
+    var lastMoveAt = 0;
+    var visible = false;
+
+    window.addEventListener('mousemove', function(e){
+      pos.x = e.clientX;
+      pos.y = e.clientY;
+      lastMoveAt = performance.now();
+      if(!visible){ cd.style.opacity = '1'; visible = true; }
+    }, {passive:true});
+
+    document.addEventListener('mouseleave', function(){ cd.style.opacity = '0'; visible = false; });
+
+    function loop(){
+      var dx = pos.x - prevX;
+      var idleFor = performance.now() - lastMoveAt;
+      var idle = idleFor > 220;
+      var targetTilt = idle ? 0 : Math.max(-26, Math.min(26, dx * 1.1));
+      tilt += (targetTilt - tilt) * 0.22;
+      var bob = idle ? Math.sin(performance.now() / 450) * 4 : 0;
+      cd.style.transform = 'translate3d(' + (pos.x - 25) + 'px,' + (pos.y - 19 + bob) + 'px,0) rotate(' + tilt.toFixed(2) + 'deg)';
+      prevX = pos.x;
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
 })();
 </script>
 
